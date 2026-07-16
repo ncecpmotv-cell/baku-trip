@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>باكو · رحلة ٤ أيام</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=Cairo:wght@600;700;800;900&family=Readex+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  :root {
+    --bg:#070a10; --bg2:#0d1222; --ink:#f2f3f9; --muted:#7c86a6;
+    --line:rgba(255,255,255,0.06); --gold:#d4a853; --gold2:#b8860b;
+    --ember:#e8753a; --teal:#2dd4bf; --navy:#1e3a5f; --sky:#60a5fa;
+    --glass:rgba(255,255,255,0.04); --glass-hi:rgba(255,255,255,0.10);
+    --radius:20px; --gap:24px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:auto}
+  body{
+    background:var(--bg);color:var(--ink);
+    font-family:'Tajawal',sans-serif;overflow-x:hidden;
+    -webkit-font-smoothing:antialiased;line-height:1.7;
+  }
+  body::after{
+    content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;opacity:.03;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .progress{position:fixed;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--gold),var(--ember),var(--teal));transform-origin:right;transform:scaleX(0);z-index:10000;pointer-events:none}
+
+  .topnav{position:fixed;top:0;left:0;right:0;z-index:9000;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;backdrop-filter:blur(20px) saturate(140%);-webkit-backdrop-filter:blur(20px) saturate(140%);background:rgba(7,10,16,0.6);border-bottom:1px solid var(--line)}
+  .topnav .logo{font-family:'Cairo',sans-serif;font-weight:800;font-size:1.3rem;color:var(--gold);letter-spacing:-.02em}
+  .topnav .logo span{color:var(--ink)}
+  .topnav a{color:var(--muted);text-decoration:none;font-size:.88rem;font-weight:500;margin-inline-start:20px;transition:color .3s}
+  .topnav a:hover{color:var(--gold)}
+
+  #map-hero{height:70vh;width:100%;position:relative;z-index:1;filter:brightness(0.7) saturate(0.8)}
+  .map-overlay{
+    position:absolute;top:0;left:0;right:0;z-index:2;
+    text-align:center;padding:90px 24px 0;
+    pointer-events:none;
+    background:linear-gradient(180deg,rgba(7,10,16,0.85) 0%,transparent 60%);
+  }
+  .map-overlay .badge{
+    display:inline-block;font-size:13px;letter-spacing:.4em;
+    color:var(--gold);padding:8px 20px;
+    border:1px solid rgba(212,168,83,0.3);border-radius:999px;
+    backdrop-filter:blur(8px);background:rgba(212,168,83,0.06);
+  }
+  .map-overlay h1{
+    font-family:'Cairo',sans-serif;font-weight:900;
+    font-size:clamp(2.6rem,10vw,8rem);line-height:.85;
+    letter-spacing:-.03em;margin:14px 0 6px;
+  }
+  .map-overlay h1 .accent{color:var(--gold)}
+  .map-overlay .sub{font-size:clamp(0.9rem,1.8vw,1.1rem);color:var(--muted);font-weight:500}
+  .map-legend{
+    position:absolute;bottom:20px;left:20px;z-index:2;
+    display:flex;gap:14px;flex-wrap:wrap;
+    background:rgba(7,10,16,0.8);backdrop-filter:blur(12px);
+    padding:10px 18px;border-radius:999px;border:1px solid var(--line);
+    font-size:0.78rem;color:var(--muted);
+  }
+  .map-legend span{display:flex;align-items:center;gap:5px}
+  .legend-dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+  .legend-dot.hotel{background:var(--gold)}
+  .legend-dot.restaurant{background:var(--ember)}
+  .legend-dot.activity{background:var(--teal)}
+  .legend-dot.transit{background:var(--sky)}
+
+  .section{padding:100px 24px;position:relative}
+  .section-header{text-align:center;margin-bottom:56px}
+  .section-header .day-num{font-family:'Readex Pro',sans-serif;font-size:13px;letter-spacing:.35em;color:var(--gold);margin-bottom:10px}
+  .section-header h2{font-family:'Cairo',sans-serif;font-weight:800;font-size:clamp(1.8rem,5vw,3.5rem)}
+  .section-header .mood{color:var(--muted);font-size:1rem;margin-top:6px}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:var(--gap);max-width:1320px;margin:0 auto;justify-content:center;align-items:stretch}
+
+  .card{
+    max-width:440px; position:relative;
+    background:var(--glass);backdrop-filter:blur(16px) saturate(140%);-webkit-backdrop-filter:blur(16px) saturate(140%);
+    border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;
+    box-shadow:0 12px 40px rgba(0,0,0,0.35),inset 0 1px 0 var(--glass-hi);
+    transition:transform .5s cubic-bezier(.16,1,.3,1),box-shadow .5s ease,border-color .5s ease;
+    cursor:default; display:flex; flex-direction:column;
+  }
+  .card:hover{
+    transform:translateY(-10px);
+    border-color:rgba(255,255,255,0.18);
+    box-shadow:0 28px 60px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.2),0 0 0 1px var(--hover-glow,transparent);
+  }
+  .card:hover .card-details-extra{max-height:200px;opacity:1;padding:0 24px 16px}
+
+  .card-img-wrap{position:relative;overflow:hidden}
+  .card-img{width:100%;height:200px;object-fit:cover;display:block;transition:transform .6s cubic-bezier(.16,1,.3,1)}
+  .card:hover .card-img{transform:scale(1.08)}
+  .card-time-badge{
+    position:absolute;top:14px;right:14px;
+    display:flex;align-items:center;gap:6px;
+    background:rgba(7,10,16,0.82);backdrop-filter:blur(10px);
+    padding:6px 14px;border-radius:999px;
+    font-size:.75rem;font-weight:600;color:var(--ink);
+    border:1px solid rgba(255,255,255,0.12);
+    z-index:2;
+  }
+  .card-time-badge .time-dot{width:7px;height:7px;border-radius:50%}
+  .card-time-badge.morning .time-dot{background:#fbbf24}
+  .card-time-badge.afternoon .time-dot{background:var(--ember)}
+  .card-time-badge.evening .time-dot{background:#a78bfa}
+  .card-time-badge.night .time-dot{background:var(--navy)}
+
+  .card-type-badge{
+    position:absolute;top:14px;left:14px;
+    background:rgba(7,10,16,0.82);backdrop-filter:blur(10px);
+    padding:5px 10px;border-radius:999px;
+    font-size:.85rem;border:1px solid rgba(255,255,255,0.12);
+    z-index:2;
+  }
+
+  .card-body{padding:22px 24px 0;flex:1;display:flex;flex-direction:column}
+  .card h3{font-family:'Cairo',sans-serif;font-weight:700;font-size:1.25rem;margin-bottom:4px;line-height:1.35}
+  .card .name-en{font-size:.78rem;color:var(--muted);margin-bottom:8px;font-family:'Readex Pro',sans-serif;direction:ltr;text-align:right}
+  .card p.desc{color:var(--muted);font-size:.85rem;line-height:1.75}
+
+  .card-rating-row{
+    display:flex;align-items:center;gap:8px;margin-top:auto;padding-top:12px;
+    transform:translateY(4px);opacity:.85;
+    transition:transform .4s ease,opacity .4s ease;
+  }
+  .card:hover .card-rating-row{transform:translateY(0);opacity:1}
+  .stars{color:var(--gold);font-size:.82rem;letter-spacing:-2px;direction:ltr;display:inline-block}
+  .rating-num{font-family:'Readex Pro',sans-serif;font-size:.85rem;font-weight:600;color:var(--ink)}
+  .rating-count{font-size:.75rem;color:var(--muted)}
+  .google-badge{display:flex;align-items:center;gap:4px;font-size:.7rem;color:var(--muted);margin-right:auto}
+  .google-badge svg{width:14px;height:14px}
+
+  .card-details-extra{
+    max-height:0;opacity:0;overflow:hidden;
+    transition:max-height .5s cubic-bezier(.16,1,.3,1),opacity .35s ease,padding .5s ease;
+    font-size:.8rem;color:var(--muted);line-height:1.8;
+    border-top:1px solid transparent;
+    padding:0 24px;
+  }
+  .card:hover .card-details-extra{border-top-color:var(--line)}
+
+  .card::after{content:'';position:absolute;bottom:0;left:24px;right:24px;height:3px;border-radius:6px 6px 0 0;transform-origin:right;transform:scaleX(0);transition:transform .5s cubic-bezier(.16,1,.3,1)}
+  .card:hover::after{transform:scaleX(1)}
+  .card.hotel{--hover-glow:rgba(212,168,83,0.25)}
+  .card.hotel::after{background:var(--gold)}
+  .card.restaurant{--hover-glow:rgba(232,117,58,0.25)}
+  .card.restaurant::after{background:var(--ember)}
+  .card.activity{--hover-glow:rgba(45,212,191,0.25)}
+  .card.activity::after{background:var(--teal)}
+  .card.flight{--hover-glow:rgba(96,165,250,0.25)}
+  .card.flight::after{background:var(--sky)}
+  .card.transit{--hover-glow:rgba(136,144,173,0.2)}
+  .card.transit::after{background:#8890ad}
+
+  .pill-row{display:flex;gap:7px;margin-top:10px;flex-wrap:wrap}
+  .pill{font-size:.7rem;padding:4px 12px;border-radius:999px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);color:var(--muted);transition:all .3s ease}
+  .card:hover .pill{background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.14)}
+
+  .price-tag{margin-top:10px;font-family:'Readex Pro',sans-serif;font-size:.9rem;color:var(--gold);font-weight:600;direction:ltr;text-align:right}
+
+  .flight-section{max-width:1000px;margin:0 auto}
+  .flight-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:var(--gap);justify-content:center;max-width:900px;margin:0 auto}
+  .flight-route{
+    display:flex;align-items:center;gap:8px;font-family:'Readex Pro',sans-serif;
+    font-size:.95rem;font-weight:600;color:var(--ink);margin:8px 0;direction:ltr;
+  }
+  .flight-route .arrow{color:var(--sky);font-size:1.1rem}
+  .flight-route .code{font-size:.75rem;color:var(--muted)}
+  .flight-meta{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px}
+  .flight-meta-item{font-size:.78rem;color:var(--muted)}
+  .flight-meta-item strong{color:var(--ink);font-family:'Readex Pro',sans-serif}
+
+  .day-accordion{max-width:1320px;margin:0 auto}
+  .day-trigger{
+    display:flex;align-items:center;gap:14px;width:100%;
+    background:var(--glass);backdrop-filter:blur(16px);
+    border:1px solid var(--line);border-radius:var(--radius);
+    padding:24px 28px;cursor:pointer;color:var(--ink);
+    font-family:'Cairo',sans-serif;font-size:1.3rem;font-weight:700;
+    transition:all .4s ease;box-shadow:0 8px 28px rgba(0,0,0,0.25);
+    margin-bottom:4px;
+  }
+  .day-trigger:hover,.day-trigger.open{border-color:var(--gold);background:rgba(212,168,83,0.06);box-shadow:0 12px 40px rgba(212,168,83,0.12)}
+  .day-trigger .day-num-circle{min-width:48px;width:48px;height:48px;border-radius:50%;background:rgba(212,168,83,0.12);display:flex;align-items:center;justify-content:center;font-family:'Readex Pro',sans-serif;font-size:1.15rem;color:var(--gold);flex-shrink:0;transition:all .4s ease}
+  .day-trigger.open .day-num-circle{background:var(--gold);color:var(--bg)}
+  .day-trigger .day-info{display:flex;flex-direction:column;text-align:right}
+  .day-trigger .day-subtitle{font-size:.75rem;color:var(--muted);font-weight:400;font-family:'Tajawal',sans-serif}
+  .day-trigger .arrow{margin-right:auto;font-size:1.1rem;transition:transform .4s ease;color:var(--gold)}
+  .day-trigger.open .arrow{transform:rotate(180deg)}
+  .day-panel{max-height:0;overflow:hidden;transition:max-height .6s cubic-bezier(.16,1,.3,1);margin-bottom:4px}
+  .day-panel.open{max-height:6000px}
+  .day-panel-inner{
+    padding:26px;background:var(--glass);
+    border:1px solid var(--line);border-top:none;border-radius:0 0 var(--radius) var(--radius);
+    margin:0 8px;opacity:0;transform:translateY(-10px);
+    transition:opacity .5s ease .15s,transform .5s ease .15s;
+  }
+  .day-panel.open .day-panel-inner{opacity:1;transform:translateY(0)}
+
+  .type-divider{
+    display:flex;align-items:center;gap:10px;
+    margin:28px 0 14px;padding:0 4px;
+  }
+  .type-divider:first-child{margin-top:0}
+  .type-divider .divider-line{flex:1;height:1px;background:var(--line)}
+  .type-divider .divider-label{
+    font-size:.75rem;font-weight:600;color:var(--muted);
+    display:flex;align-items:center;gap:6px;
+    white-space:nowrap;
+  }
+
+  .csv-btn{
+    display:inline-flex;align-items:center;gap:8px;
+    margin-top:22px;padding:10px 22px;
+    background:rgba(212,168,83,0.1);border:1px solid rgba(212,168,83,0.3);
+    border-radius:999px;color:var(--gold);font-family:'Tajawal',sans-serif;
+    font-size:.85rem;font-weight:600;cursor:pointer;
+    transition:all .3s ease;
+  }
+  .csv-btn:hover{background:rgba(212,168,83,0.2);border-color:var(--gold);box-shadow:0 0 20px rgba(212,168,83,0.15)}
+
+  .budget{max-width:600px;margin:60px auto 0;background:var(--glass);backdrop-filter:blur(16px) saturate(140%);-webkit-backdrop-filter:blur(16px) saturate(140%);border:1px solid var(--line);border-radius:var(--radius);padding:34px;box-shadow:0 8px 32px rgba(0,0,0,0.25),inset 0 1px 0 var(--glass-hi)}
+  .budget .row{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line);color:var(--muted)}
+  .budget .row:last-child{border-bottom:none;font-weight:800;color:var(--gold);font-family:'Readex Pro',sans-serif;font-size:1.2rem;padding-top:16px;margin-top:4px;border-top:1px solid rgba(255,255,255,0.12)}
+  .budget .row .amt{font-family:'Readex Pro',sans-serif;direction:ltr}
+
+  .footer{text-align:center;padding:80px 24px;border-top:1px solid var(--line)}
+  .footer h4{font-family:'Cairo',sans-serif;font-weight:900;font-size:clamp(1.8rem,5vw,3.5rem);margin-bottom:10px}
+  .footer p{color:var(--muted);font-size:1rem}
+  .downloads-row{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:28px}
+  .csv-btn.all{font-size:.95rem;padding:12px 28px;margin:0 8px}
+
+  .leaflet-container{background:var(--bg2)}
+  .leaflet-control-zoom a{background:rgba(7,10,16,0.85)!important;color:var(--ink)!important;border-color:var(--line)!important}
+  .leaflet-popup-content-wrapper{background:rgba(13,18,34,0.95)!important;color:var(--ink)!important;border:1px solid var(--line)!important;border-radius:14px!important;backdrop-filter:blur(16px)}
+  .leaflet-popup-tip{background:rgba(13,18,34,0.95)!important}
+  .leaflet-popup-content{font-family:'Tajawal',sans-serif;font-size:.9rem;margin:10px 14px;line-height:1.5}
+  .leaflet-popup-content strong{color:var(--gold)}
+  .leaflet-popup-content .pop-type{font-size:.75rem;color:var(--muted)}
+
+  .reveal{will-change:transform,opacity}
+
+  /* Savings badge */
+  .savings-badge{
+    display:inline-flex;align-items:center;gap:4px;
+    background:rgba(45,212,191,0.12);border:1px solid rgba(45,212,191,0.3);
+    color:var(--teal);font-size:.72rem;padding:3px 10px;border-radius:999px;
+    font-weight:600;margin-right:6px;
+  }
+
+  @media(prefers-reduced-motion:reduce){
+    .card{transition:none}.card:hover{transform:none}.card:hover .card-img{transform:none}
+    .card:hover .card-details-extra{max-height:none;opacity:1;padding:0 24px 16px}
+    .progress{display:none}.day-panel{transition:none}
+  }
+  @media(prefers-reduced-transparency:reduce){
+    .card,.budget,.day-trigger,.day-panel-inner{background:rgba(14,18,28,0.94);backdrop-filter:none;-webkit-backdrop-filter:none}
+  }
+  @media(max-width:768px){
+    .cards{grid-template-columns:1fr}
+    .flight-cards{grid-template-columns:1fr}
+    .day-trigger{font-size:1.05rem;padding:16px 18px}
+    .map-legend{font-size:.68rem;gap:8px;padding:8px 14px}
+  }
+</style>
+</head>
+<body>
+
+<div class="progress"></div>
+
+<nav class="topnav">
+  <div class="logo">رِحـ<span>لة</span></div>
+  <div>
+    <a href="#flights">الطيران</a>
+    <a href="#days">الأيام</a>
+    <a href="#budget">الميزانية</a>
+    <a href="#downloads">تحميل</a>
+  </div>
+</nav>
+
+<!-- ═══ HERO MAP ═══ -->
+<div style="position:relative">
+  <div id="map-hero"></div>
+  <div class="map-overlay">
+    <div class="badge">جمهورية أذربيجان</div>
+    <h1>با<span class="accent">كــو</span></h1>
+    <p class="sub">٤ أيام · ١٢ محطة · تاريخ · عمارة · طبيعة · مطبخ قوقازي</p>
+  </div>
+  <div class="map-legend">
+    <span><span class="legend-dot hotel"></span> فنادق</span>
+    <span><span class="legend-dot restaurant"></span> مطاعم</span>
+    <span><span class="legend-dot activity"></span> أنشطة</span>
+    <span><span class="legend-dot transit"></span> طيران</span>
+  </div>
+</div>
+
+<!-- ═══ PRICE INDEX ═══ -->
+<section class="section" style="padding-bottom:20px">
+  <div class="section-header reveal">
+    <div class="day-num">أسعار الجملة — مقامي</div>
+    <h2>أنت تدفع أقل بـ ٣٠٪ تقريباً</h2>
+    <p class="mood">أسعار الجملة الحصرية من مقامي ترافيل مقارنة بالأسعار العامة</p>
+  </div>
+  <div style="display:flex;gap:24px;flex-wrap:wrap;justify-content:center;max-width:1000px;margin:0 auto">
+    <div class="card reveal" style="flex:1;min-width:280px;max-width:440px">
+      <div class="card-body">
+        <h3>✈️ تذكرة الطيران</h3>
+        <div class="name-en">RUH ⇄ GYD · ذهاب وعودة</div>
+        <p class="desc">سعر الجملة من مقامي</p>
+        <div class="price-tag" style="font-size:1.5rem">٢,٣٥٧ ﷼</div>
+        <p class="desc" style="margin-top:4px">يشمل الضرائب · حقيبة يد</p>
+      </div>
+    </div>
+    <div class="card reveal" style="flex:1;min-width:280px;max-width:440px">
+      <div class="card-body">
+        <h3>🏨 الفندق (٣ ليالي)</h3>
+        <div class="name-en">Radisson Hotel Baku · 4★</div>
+        <p class="desc">سعر مقامي <span class="savings-badge">وفر ١٣.٥٪</span></p>
+        <div class="price-tag" style="font-size:1.5rem">٨٩١ ﷼</div>
+        <p class="desc" style="margin-top:4px">Booking.com: ١,٠٢٩ ﷼ · توفير ١٣٨ ﷼</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ FLIGHTS ═══ -->
+<section class="section" id="flights" style="padding-top:70px">
+  <div class="section-header reveal">
+    <div class="day-num">الوصول والمغادرة</div>
+    <h2>رحلات الطيران</h2>
+    <p class="mood">الرياض ⇄ باكو · ذهاب وعودة</p>
+  </div>
+  <div class="flight-section">
+    <div class="flight-cards" id="flightCards"></div>
+  </div>
+</section>
+
+<!-- ═══ DAYS ACCORDION ═══ -->
+<section class="section" id="days">
+  <div class="section-header reveal">
+    <div class="day-num">خطة الرحلة</div>
+    <h2>يوم بيوم</h2>
+    <p class="mood">اضغط على اليوم لعرض التفاصيل + تحميل CSV</p>
+  </div>
+  <div class="day-accordion" id="accordionRoot"></div>
+</section>
+
+<!-- ═══ BUDGET ═══ -->
+<section class="section" id="budget">
+  <div class="section-header reveal">
+    <div class="day-num">الميزانية</div>
+    <h2>التكلفة التقديرية</h2>
+    <p class="mood">للشخص الواحد · فئة اقتصادية-متوسطة · السقف ٥,٠٠٠ ﷼</p>
+  </div>
+  <div class="budget reveal">
+    <div class="row"><span>تذاكر الطيران (ذهاب وعودة)</span><span class="amt">٢,٣٥٧ ﷼</span></div>
+    <div class="row"><span>الفندق (٣ ليالي — راديسون باكو)</span><span class="amt">٨٩١ ﷼</span></div>
+    <div class="row"><span>الطعام والمشروبات</span><span class="amt">٦٠٠ ﷼</span></div>
+    <div class="row"><span>المواصلات (مترو + تاكسي)</span><span class="amt">٢٥٠ ﷼</span></div>
+    <div class="row"><span>الأنشطة والجولات</span><span class="amt">٥٠٠ ﷼</span></div>
+    <div class="row"><span>التسوق والهدايا</span><span class="amt">٣٠٠ ﷼</span></div>
+    <div class="row"><span>مصاريف متنوعة</span><span class="amt">١٠٢ ﷼</span></div>
+    <div class="row"><span>المجموع</span><span class="amt">٥,٠٠٠ ﷼</span></div>
+  </div>
+</section>
+
+<!-- ═══ FOOTER ═══ -->
+<footer class="footer" id="downloads">
+  <h4 class="reveal">باكو تنتظرك على شاطئ بحر قزوين</h4>
+  <p class="reveal">حمّل ملف CSV لجميع المحطات وارفعها على Google My Maps</p>
+  <div class="downloads-row reveal">
+    <button class="csv-btn all" onclick="downloadAllCSV()">📥 تحميل CSV كامل الرحلة</button>
+  </div>
+  <p style="color:var(--muted);margin-top:24px;font-size:0.8rem" class="reveal">Leaflet · GSAP · Glassmorphism · Maqami Travel</p>
+</footer>
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ═══════════════════════════════════════════
+// DATA — باكو ٤ أيام
+// ═══════════════════════════════════════════
+
+const FLIGHTS = [
+  {
+    type:'flight', day:1, direction:'arrival',
+    airline:'الخطوط الجوية الأذربيجانية', flightNo:'J2 5026',
+    fromCity:'الرياض', fromCode:'RUH', toCity:'باكو', toCode:'GYD',
+    depDate:'اليوم ١', depTime:'٠٢:٣٠ ص', arrTime:'٠٦:٤٥ ص',
+    terminal:'صالة ٣', duration:'٣ ساعات و ١٥ دقيقة', travelClass:'الدرجة السياحية',
+    desc:'رحلة مباشرة من الرياض إلى باكو — وجبة خفيفة على متن الطائرة',
+    img:'https://images.unsplash.com/photo-1436491865332-7a61a109bb05?w=600&q=80',
+    pills:['مباشرة','وجبة خفيفة','مقاعد مريحة'],
+    lat:40.4675, lng:50.0467,
+    rating:4.1, ratingCount:890
+  },
+  {
+    type:'flight', day:4, direction:'departure',
+    airline:'الخطوط الجوية الأذربيجانية', flightNo:'J2 5025',
+    fromCity:'باكو', fromCode:'GYD', toCity:'الرياض', toCode:'RUH',
+    depDate:'اليوم ٤', depTime:'٢٠:٣٠ م', arrTime:'٢٣:٤٥ م',
+    terminal:'صالة ١', duration:'٣ ساعات و ١٥ دقيقة', travelClass:'الدرجة السياحية',
+    desc:'رحلة العودة من باكو إلى الرياض — وجبة عشاء خفيفة',
+    img:'https://images.unsplash.com/photo-1542296332-2e4473faf563?w=600&q=80',
+    pills:['مباشرة','وجبة خفيفة','مقاعد مريحة'],
+    lat:24.9578, lng:46.6989,
+    rating:4.1, ratingCount:890
+  }
+];
+
+const DAYS = [
+  {num:1, title:'اليوم الأول — الوصول والمدينة القديمة', mood:'أول نفس في باكو'},
+  {num:2, title:'اليوم الثاني — العمارة الحديثة والواجهة البحرية', mood:'باكو تتجلى'},
+  {num:3, title:'اليوم الثالث — التسوق والمرتفعات', mood:'بين الجبال والبحر'},
+  {num:4, title:'اليوم الرابع — نقوش غوبوستان والوداع', mood:'آخر لحظات القوقاز'}
+];
+
+const TYPE_COLORS = {hotel:'#d4a853', restaurant:'#e8753a', activity:'#2dd4bf', transit:'#8890ad', flight:'#60a5fa'};
+const TYPE_EMOJI = {hotel:'🏨', restaurant:'🍽️', activity:'🎯', transit:'🚗', flight:'✈️'};
+const TYPE_LABEL = {hotel:'فندق', restaurant:'مطعم', activity:'نشاط', transit:'مواصلات', flight:'طيران'};
+
+const MARKERS = [
+  // ── Day 1 ──
+  {
+    id:'d1h', day:1, type:'hotel', time:'مساءً', timeClass:'evening',
+    name:'فندق راديسون باكو', nameEn:'Radisson Hotel Baku',
+    lat:40.3714, lng:49.8488,
+    desc:'تسجيل الدخول — إطلالة رائعة على بحر قزوين والمدينة القديمة · موقع مركزي · واي فاي مجاني',
+    price:'٢٩٧ ﷼ / ليلة',
+    img:'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=600&q=80',
+    pills:['4 نجوم','واي فاي','إطلالة بحر','نادي رياضي','بوفيه إفطار'],
+    rating:4.3, ratingCount:5559,
+    hotelStars:4,
+    extraDetails:'غرف مكيفة · إطلالة على بحر قزوين · بوفيه إفطار عالمي · مركز لياقة · مواقف مجانية',
+    amenities:['واي فاي مجاني','نادي رياضي','مطعم','بوفيه إفطار','مواقف','خدمة الغرف']
+  },
+  {
+    id:'d1a1', day:1, type:'activity', time:'صباحًا', timeClass:'morning',
+    name:'المدينة القديمة — إيتشري شيهر', nameEn:'Icherisheher — Old City',
+    lat:40.3667, lng:49.8352,
+    desc:'حي مسوّر يعود للقرن الـ١٢ — أزقة ضيقة مرصوفة بالحجر ومباني تاريخية · موقع تراث عالمي لليونسكو',
+    price:'الدخول: مجاني',
+    img:'https://images.unsplash.com/photo-1564869732506-5e0c7a8c8a26?w=600&q=80',
+    pills:['يونسكو','تاريخ','أزقة','عمارة إسلامية'],
+    rating:4.8, ratingCount:15200,
+    duration:'٢-٣ ساعات',
+    bestTime:'صباحًا (٨-١١ ص)',
+    extraDetails:'قصر الشروانشاهيين · برج العذراء · مسجد الجمعة · خان القوافل · أسوار القلعة التاريخية'
+  },
+  {
+    id:'d1a2', day:1, type:'activity', time:'ظهرًا', timeClass:'afternoon',
+    name:'برج العذراء — قيز قالاسي', nameEn:'Maiden Tower — Qiz Qalasi',
+    lat:40.3661, lng:49.8373,
+    desc:'أيقونة باكو التاريخية — برج غامض من القرن الـ١٢ بارتفاع ٢٩ متر مع متحف وإطلالة ٣٦٠ درجة على المدينة',
+    price:'الدخول: ٢٠ ﷼',
+    img:'https://images.unsplash.com/photo-1582719508460-8e5f72e2f779?w=600&q=80',
+    pills:['أيقوني','تاريخ','إطلالة','متحف'],
+    rating:4.5, ratingCount:11800,
+    duration:'١-٢ ساعة',
+    bestTime:'قبل الظهر (١٠ ص - ١٢ م)',
+    extraDetails:'٨ طوابق · متحف داخلي عن تاريخ باكو · منصة مراقبة في الأعلى · أسطورة الأميرة المحاربة'
+  },
+  {
+    id:'d1r', day:1, type:'restaurant', time:'مساءً', timeClass:'evening',
+    name:'مطعم نرجيز', nameEn:'Nergiz Restaurant',
+    lat:40.3668, lng:49.8378,
+    desc:'أشهر مطعم أذربيجاني تقليدي — بيلاف بالزعفران، كباب لحم الضأن، دولما ورق العنب، خبز التنور الطازج',
+    price:'~١٢٠ ﷼ للشخص',
+    img:'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=600&q=80',
+    pills:['أذربيجاني','تقليدي','مشاوي','عائلي'],
+    rating:4.4, ratingCount:3200,
+    cuisineType:'مطبخ أذربيجاني تقليدي',
+    priceLevel:'$$',
+    extraDetails:'جلسات داخلية وخارجية · خبز التنور الطازج · شاي أذربيجاني · موسيقى تقليدية · ديكور تراثي'
+  },
+
+  // ── Day 2 ──
+  {
+    id:'d2a1', day:2, type:'activity', time:'صباحًا', timeClass:'morning',
+    name:'مركز حيدر علييف', nameEn:'Heydar Aliyev Center',
+    lat:40.3956, lng:49.8609,
+    desc:'تحفة زها حديد المعمارية — مبنى انسيابي أبيض بلا زوايا حادة · معارض فنية وثقافية وتاريخ أذربيجان',
+    price:'الدخول: ٣٠ ﷼',
+    img:'https://images.unsplash.com/photo-1559329007-40df8a9345d8?w=600&q=80',
+    pills:['معماري','زها حديد','متحف','أيقوني'],
+    rating:4.7, ratingCount:9800,
+    duration:'٢-٣ ساعات',
+    bestTime:'صباحًا (٩ ص - ١٢ م)',
+    extraDetails:'معرض نماذج باكو المصغر · معرض الفن الحديث · متحف حيدر علييف · حديقة خارجية · متجر هدايا'
+  },
+  {
+    id:'d2a2', day:2, type:'activity', time:'ظهرًا', timeClass:'afternoon',
+    name:'ممشى باكو بوليفارد', nameEn:'Baku Boulevard — Seaside Park',
+    lat:40.3700, lng:49.8450,
+    desc:'أطول ممشى بحري في العالم على بحر قزوين — حدائق، مقاهي، نافورة موسيقية، عجلة فيريس عملاقة',
+    price:'الدخول: مجاني',
+    img:'https://images.unsplash.com/photo-1584551246679-0daf3d275d0f?w=600&q=80',
+    pills:['بحر','ممشى','حدائق','نافورة','عائلي'],
+    rating:4.6, ratingCount:13500,
+    duration:'١-٢ ساعة',
+    bestTime:'قبل الغروب (٤-٦:٣٠ م)',
+    extraDetails:'عجلة باكو آي · النافورة الموسيقية · حدائق الورود · مقاهي على البحر · حديقة ملاهي مصغرة'
+  },
+  {
+    id:'d2a3', day:2, type:'activity', time:'ظهرًا', timeClass:'afternoon',
+    name:'متحف السجاد الأذربيجاني', nameEn:'Azerbaijan Carpet Museum',
+    lat:40.3694, lng:49.8434,
+    desc:'متحف فريد على شكل سجادة ملفوفة — أكبر مجموعة سجاد في العالم: سجاد التبريز، شيروان، قوبا، غنجة',
+    price:'الدخول: ٢٠ ﷼',
+    img:'https://images.unsplash.com/photo-1533929736458-ca588d08c8be?w=600&q=80',
+    pills:['متحف','سجاد','فن','تراث'],
+    rating:4.4, ratingCount:5400,
+    duration:'١-١.٥ ساعة',
+    bestTime:'بعد الظهر (١٢-٣ م)',
+    extraDetails:'تصميم معماري على شكل سجادة · أنوال نسيج حية · أكثر من ١٠,٠٠٠ قطعة · سجاد العصر الصفوي'
+  },
+  {
+    id:'d2r', day:2, type:'restaurant', time:'مساءً', timeClass:'evening',
+    name:'مطعم تشينار', nameEn:'Chinar Restaurant',
+    lat:40.3725, lng:49.8475,
+    desc:'مطعم آسيوي راقٍ — سوشي، ديم سم، مشاوي يابانية على الفحم في أجواء عصرية تحت شجرة تشينار عملاقة',
+    price:'~١٨٠ ﷼ للشخص',
+    img:'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=600&q=80',
+    pills:['آسيوي','راقي','بحر','تراس'],
+    rating:4.5, ratingCount:2100,
+    cuisineType:'مطبخ آسيوي فيوجن',
+    priceLevel:'$$$',
+    extraDetails:'شرفة خارجية على البحر · سوشي طازج · كوكتيلات شرقية · ديكور شرق أوسطي فاخر · دي جي مسائي'
+  },
+
+  // ── Day 3 ──
+  {
+    id:'d3a1', day:3, type:'activity', time:'صباحًا', timeClass:'morning',
+    name:'حديقة المرتفعات — منتزه الشهداء', nameEn:'Highland Park — Martyrs\' Lane',
+    lat:40.3576, lng:49.8309,
+    desc:'أفضل إطلالة بانورامية على باكو — مشهد خلاب للمدينة القديمة وبحر قزوين وأبراج اللهب من الأعلى',
+    price:'الدخول: مجاني',
+    img:'https://images.unsplash.com/photo-1451337516015-6b6e9a44a8a3?w=600&q=80',
+    pills:['إطلالة','تصوير','حديقة','طبيعة'],
+    rating:4.8, ratingCount:8900,
+    duration:'١-٢ ساعة',
+    bestTime:'الصباح (٨-١٠ ص)',
+    extraDetails:'بانوراما ٣٦٠ درجة · تكسي (تلفريك) من البوليفارد · ممشى الشهداء · مسجد الشهداء · مقهى في القمة'
+  },
+  {
+    id:'d3a2', day:3, type:'activity', time:'ظهرًا', timeClass:'afternoon',
+    name:'شارع نظامي — شارع التسوق', nameEn:'Nizami Street — Torgovaya',
+    lat:40.3746, lng:49.8423,
+    desc:'شارع المشاة الرئيسي في باكو — محلات عالمية، مقاهي، مطاعم، وفنادق تاريخية على الطراز الأوروبي',
+    price:'',
+    img:'https://images.unsplash.com/photo-1555529669-e69e7aa0ba9a?w=600&q=80',
+    pills:['تسوق','مقاهي','ماركات','ممشى'],
+    rating:4.6, ratingCount:12500,
+    duration:'٢-٣ ساعات',
+    bestTime:'بعد الظهر (١٢-٥ م)',
+    extraDetails:'٣.٥ كم من المحلات · ماركات عالمية ومحلية · مقهى الشوكولاتة · عمارة أوروبية · فنانون شوارع'
+  },
+  {
+    id:'d3a3', day:3, type:'activity', time:'مساءً', timeClass:'evening',
+    name:'ميدان النوافير', nameEn:'Fountains Square',
+    lat:40.3710, lng:49.8369,
+    desc:'قلب باكو النابض — نوافير راقصة مضاءة، مطاعم، مقاهي، وموسيقى حية · المكان المفضل للسكان المحليين',
+    price:'الدخول: مجاني',
+    img:'https://images.unsplash.com/photo-1582719508460-8e5f72e2f779?w=600&q=80',
+    pills:['نوافير','ترفيه','مقاهي','مساء'],
+    rating:4.5, ratingCount:16200,
+    duration:'١-٢ ساعة',
+    bestTime:'مساءً (بعد المغرب)',
+    extraDetails:'نوافير راقصة مضاءة · موسيقى كلاسيكية · مطاعم عالمية · بوظة ماراش · كراسي خارجية'
+  },
+  {
+    id:'d3r', day:3, type:'restaurant', time:'مساءً', timeClass:'evening',
+    name:'مطعم سُماخ', nameEn:'Sumakh Restaurant',
+    lat:40.3720, lng:49.8380,
+    desc:'أفضل مطعم أذربيجاني حديث — تقديم عصري للأطباق القوقازية: شاشليك، ساج، كوتاب بالأعشاب، باذنجان مشوي',
+    price:'~١٥٠ ﷼ للشخص',
+    img:'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600&q=80',
+    pills:['أذربيجاني','عصري','قوقازي','راقي'],
+    rating:4.6, ratingCount:2800,
+    cuisineType:'مطبخ أذربيجاني عصري',
+    priceLevel:'$$',
+    extraDetails:'أطباق موسمية · لحم ضأن جبلي · نبيذ أذربيجاني محلي · تراس خارجي · حجوزات مسبقة ضرورية'
+  },
+
+  // ── Day 4 ──
+  {
+    id:'d4a1', day:4, type:'activity', time:'صباحًا', timeClass:'morning',
+    name:'محمية غوبوستان الوطنية', nameEn:'Gobustan National Park',
+    lat:40.1050, lng:49.3770,
+    desc:'نقوش صخرية عمرها ٤٠,٠٠٠ سنة — رسومات بشر وحيوانات ورقصات قديمة · براكين طينية فريدة · موقع يونسكو',
+    price:'الدخول: ٣٠ ﷼',
+    img:'https://images.unsplash.com/photo-1451337516015-6b6e9a44a8a3?w=600&q=80',
+    pills:['يونسكو','تاريخ','طبيعة','نقوش','براكين طينية'],
+    rating:4.7, ratingCount:7200,
+    duration:'٣-٤ ساعات',
+    bestTime:'الصباح الباكر (٧-١١ ص)',
+    extraDetails:'أكثر من ٦,٠٠٠ نقش صخري · متحف غوبوستان التفاعلي · براكين طينية نشطة · ٦٥ كم جنوب باكو'
+  },
+  {
+    id:'d4r', day:4, type:'restaurant', time:'ظهرًا', timeClass:'afternoon',
+    name:'مقهى الشاي الأذربيجاني — تشايخانا', nameEn:'Traditional Azerbaijani Tea House',
+    lat:40.3665, lng:49.8355,
+    desc:'وجبة الوداع — شاي أذربيجاني في السماور مع المربى، الحلويات التقليدية، والباكالفا الشهيرة',
+    price:'~٦٠ ﷼ للشخص',
+    img:'https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=600&q=80',
+    pills:['شاي','حلويات','تقليدي','وداع'],
+    rating:4.3, ratingCount:1800,
+    cuisineType:'مطبخ أذربيجاني تقليدي',
+    priceLevel:'$',
+    extraDetails:'شاي بالسماور · مربى التوت والكرز · باكالفا بالجوز · بقلاوة · أجواء تراثية في المدينة القديمة'
+  }
+];
+
+// Combine all items for map
+const ALL_MAP_ITEMS = [...FLIGHTS, ...MARKERS];
+
+const arabicNums = ['٠','١','٢','٣','٤','٥','٦','٧','٨','٩'];
+function toArabicNum(n){return String(n).split('').map(c=>arabicNums[c]||c).join('')}
+
+function buildStars(rating) {
+  const full = Math.floor(rating);
+  const half = rating % 1 >= 0.5 ? 1 : 0;
+  const empty = 5 - full - half;
+  return '★'.repeat(full) + (half ? '½' : '') + '☆'.repeat(empty);
+}
+
+// ═══════════════════════════════
+// BUILD FLIGHT CARDS
+// ═══════════════════════════════
+const flightRoot = document.getElementById('flightCards');
+FLIGHTS.forEach(f => {
+  const isArrival = f.direction === 'arrival';
+  const label = isArrival ? '🛬 وصول' : '🛫 مغادرة';
+  flightRoot.insertAdjacentHTML('beforeend', `
+    <div class="card flight reveal">
+      <div class="card-img-wrap">
+        <img class="card-img" src="${f.img}" alt="${f.airline}" loading="lazy">
+        <span class="card-time-badge night"><span class="time-dot"></span>${f.depDate}</span>
+        <span class="card-type-badge">${label}</span>
+      </div>
+      <div class="card-body">
+        <h3>${f.airline}</h3>
+        <div class="name-en">${f.flightNo} · ${f.duration}</div>
+        <div class="flight-route">
+          <span>${f.fromCity} <span class="code">${f.fromCode}</span></span>
+          <span class="arrow">→</span>
+          <span>${f.toCity} <span class="code">${f.toCode}</span></span>
+        </div>
+        <div class="flight-meta">
+          <div class="flight-meta-item">🕐 الإقلاع: <strong>${f.depTime}</strong></div>
+          <div class="flight-meta-item">🕐 الوصول: <strong>${f.arrTime}</strong></div>
+          <div class="flight-meta-item">🚪 <strong>${f.terminal}</strong></div>
+          <div class="flight-meta-item">💺 <strong>${f.travelClass}</strong></div>
+        </div>
+        <p class="desc" style="margin-top:8px">${f.desc}</p>
+        <div class="pill-row">${f.pills.map(p=>`<span class="pill">${p}</span>`).join('')}</div>
+        <div class="card-rating-row">
+          <span class="stars" style="font-size:.88rem">${buildStars(f.rating)}</span>
+          <span class="rating-num">${f.rating}</span>
+          <span class="rating-count">(${f.ratingCount.toLocaleString('en-US')})</span>
+          <span class="google-badge">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+            Google
+          </span>
+        </div>
+      </div>
+      <div class="card-details-extra">
+        ${f.extraDetails||''}
+      </div>
+    </div>
+  `);
+});
+
+// ═══════════════════════════════
+// MAP
+// ═══════════════════════════════
+const map = L.map('map-hero', {zoomControl:true, attributionControl:false}).setView([40.38,49.86], 12);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {maxZoom:19}).addTo(map);
+
+ALL_MAP_ITEMS.forEach(m => {
+  const icon = L.divIcon({
+    html: `<div style="background:${TYPE_COLORS[m.type]};width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 10px rgba(0,0,0,0.5);border:2px solid rgba(255,255,255,0.3)">${TYPE_EMOJI[m.type]}</div>`,
+    iconSize:[28,28], iconAnchor:[14,14], popupAnchor:[0,-14], className:''
+  });
+  const marker = L.marker([m.lat,m.lng], {icon}).addTo(map);
+  marker.bindPopup(`
+    <strong>${m.name}</strong>
+    <div class="pop-type">${m.desc||''}</div>
+    <div class="pop-type" style="margin-top:4px">اليوم ${toArabicNum(m.day||'')} · ${TYPE_LABEL[m.type]} · ${m.price||''}</div>
+  `);
+});
+
+const group = L.featureGroup(ALL_MAP_ITEMS.map(m => L.marker([m.lat,m.lng])));
+map.fitBounds(group.getBounds().pad(0.12));
+
+// ═══════════════════════════════
+// BUILD ACCORDION
+// ═══════════════════════════════
+const root = document.getElementById('accordionRoot');
+DAYS.forEach(day => {
+  const markers = MARKERS.filter(m => m.day === day.num);
+  const types = ['hotel','restaurant','activity'];
+  const grouped = {};
+  types.forEach(t => { grouped[t] = markers.filter(m => m.type === t); });
+
+  let cardsHTML = '';
+  types.forEach(t => {
+    const items = grouped[t];
+    if (!items.length) return;
+    if (cardsHTML) cardsHTML += `<div class="type-divider"><div class="divider-line"></div><span class="divider-label">${TYPE_EMOJI[t]} ${TYPE_LABEL[t]}</span><div class="divider-line"></div></div>`;
+    cardsHTML += `<div class="cards">`;
+    items.forEach(m => {
+      const timeEmoji = {morning:'🌅', afternoon:'☀️', evening:'🌇', night:'🌙'};
+      const timeLabel = {morning:'صباحاً', afternoon:'ظهراً', evening:'مساءً', night:'ليلاً'};
+      cardsHTML += `
+    <div class="card ${m.type}">
+      <div class="card-img-wrap">
+        <img class="card-img" src="${m.img}" alt="${m.name}" loading="lazy">
+        <span class="card-time-badge ${m.timeClass||'afternoon'}"><span class="time-dot"></span>${timeEmoji[m.timeClass]||''} ${timeLabel[m.timeClass]||m.time||''}</span>
+        <span class="card-type-badge">${TYPE_EMOJI[m.type]}</span>
+      </div>
+      <div class="card-body">
+        <h3>${m.name}</h3>
+        <div class="name-en">${m.nameEn||''}</div>
+        <p class="desc">${m.desc}</p>
+        <div class="pill-row">${(m.pills||[]).map(p=>`<span class="pill">${p}</span>`).join('')}</div>
+        ${m.price ? `<div class="price-tag">${m.price}</div>` : ''}
+        <div class="card-rating-row">
+          <span class="stars">${buildStars(m.rating||0)}</span>
+          <span class="rating-num">${m.rating||''}</span>
+          <span class="rating-count">(${(m.ratingCount||0).toLocaleString('en-US')})</span>
+          <span class="google-badge">
+            <svg viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+            Google
+          </span>
+        </div>
+      </div>
+      <div class="card-details-extra">
+        ${m.extraDetails||''}
+        ${m.amenities ? '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">'+m.amenities.map(a=>'<span style="font-size:.72rem;padding:3px 10px;border-radius:999px;background:rgba(212,168,83,0.1);border:1px solid rgba(212,168,83,0.2);color:var(--gold)">✓ '+a+'</span>').join('')+'</div>' : ''}
+        ${m.cuisineType ? '<div style="margin-top:4px">🍳 المطبخ: '+m.cuisineType+' · 💰 '+m.priceLevel+'</div>' : ''}
+        ${m.duration ? '<div style="margin-top:4px">⏱ المدة: '+m.duration+' · 🕐 أفضل وقت: '+m.bestTime+'</div>' : ''}
+      </div>
+    </div>`;
+    });
+    cardsHTML += `</div>`;
+  });
+
+  const hotelCount = grouped.hotel.length;
+  const restCount = grouped.restaurant.length;
+  const actCount = grouped.activity.length;
+
+  root.insertAdjacentHTML('beforeend', `
+    <button class="day-trigger reveal" onclick="toggleDay(this)" data-day="${day.num}">
+      <span class="day-num-circle">${toArabicNum(day.num)}</span>
+      <span class="day-info">
+        <span>${day.title}</span>
+        <span class="day-subtitle">${hotelCount>0?`🏨 ${hotelCount} `:''}${restCount>0?`🍽️ ${restCount} `:''}${actCount>0?`🎯 ${actCount} `:''}· ${day.mood}</span>
+      </span>
+      <span class="arrow">◀</span>
+    </button>
+    <div class="day-panel">
+      <div class="day-panel-inner">
+        <p style="color:var(--muted);font-size:.9rem;margin-bottom:6px">${day.mood}</p>
+        ${cardsHTML}
+        <button class="csv-btn" onclick="downloadDayCSV(${day.num})">📥 تحميل CSV لليوم ${toArabicNum(day.num)}</button>
+      </div>
+    </div>`);
+});
+
+function toggleDay(btn) {
+  const panel = btn.nextElementSibling;
+  const isOpen = btn.classList.contains('open');
+  document.querySelectorAll('.day-trigger.open').forEach(other => {
+    if (other !== btn) { other.classList.remove('open'); const p = other.nextElementSibling; if(p) p.classList.remove('open'); }
+  });
+  if (isOpen) { btn.classList.remove('open'); panel.classList.remove('open'); }
+  else {
+    btn.classList.add('open'); panel.classList.add('open');
+    setTimeout(() => btn.scrollIntoView({behavior:'smooth',block:'start'}), 100);
+    setTimeout(() => ScrollTrigger.refresh(), 650);
+  }
+}
+
+function csvEscape(val) {
+  if (val == null) return '';
+  const s = String(val);
+  if (!s.includes(',') && !s.includes('"') && !s.includes('\n')) return s;
+  return '"' + s.replace(/"/g, '""') + '"';
+}
+
+function generateCSV(markers) {
+  let csv = 'Day,Name,Latitude,Longitude,Description,Type,Time\n';
+  markers.forEach(m => {
+    const timeLabel = {morning:'صباحاً', afternoon:'ظهراً', evening:'مساءً', night:'ليلاً'};
+    const day = csvEscape(`اليوم ${m.day}`);
+    const name = csvEscape(`${m.name}${m.nameEn ? ' ('+m.nameEn+')' : ''}`);
+    const desc = csvEscape(`${m.desc||''} ${m.price||''}`.trim());
+    const type = csvEscape(TYPE_LABEL[m.type]||m.type||'');
+    const time = csvEscape(timeLabel[m.timeClass]||m.time||'');
+    csv += `${day},${name},${m.lat},${m.lng},${desc},${type},${time}\n`;
+  });
+  return csv;
+}
+
+function downloadCSV(csv, filename) {
+  const blob = new Blob(['\uFEFF' + csv], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadDayCSV(dayNum) {
+  const markers = MARKERS.filter(m => m.day === dayNum);
+  downloadCSV(generateCSV(markers), `baku-day-${dayNum}.csv`);
+}
+
+function downloadAllCSV() {
+  downloadCSV(generateCSV(MARKERS), 'baku-all-days.csv');
+}
+
+// ═══════════════════════════════
+// GSAP ANIMATIONS
+// ═══════════════════════════════
+gsap.registerPlugin(ScrollTrigger);
+
+gsap.to('.progress', {scaleX:1,ease:'none',scrollTrigger:{trigger:'body',start:'top top',end:'bottom bottom',scrub:0.3}});
+
+const heroTL = gsap.timeline({defaults:{ease:'power4.out'}});
+heroTL
+  .from('.map-overlay .badge',{y:30,opacity:0,duration:.7})
+  .from('.map-overlay h1',{y:40,opacity:0,scale:.9,duration:1,ease:'power3.out'},'=-.3')
+  .from('.map-overlay .sub',{y:20,opacity:0,duration:.6},'=-.4')
+  .from('.map-legend',{y:12,opacity:0,duration:.5},'=-.2');
+
+gsap.utils.toArray('.reveal').forEach(el => {
+  gsap.from(el,{y:60,opacity:0,duration:.85,ease:'power3.out',scrollTrigger:{trigger:el,start:'top 85%',toggleActions:'play none none reverse'}});
+});
+
+const observer = new MutationObserver(() => {
+  document.querySelectorAll('.day-panel.open .cards').forEach(grid => {
+    const cards = grid.querySelectorAll('.card');
+    if (cards.length && !cards[0].dataset.animated) {
+      cards.forEach(c => c.dataset.animated = '1');
+      gsap.from(cards, {y:60,opacity:0,scale:.94,duration:.6,stagger:.1,ease:'back.out(1.5)'});
+    }
+  });
+  document.querySelectorAll('#flightCards .card').forEach((card,i) => {
+    if (!card.dataset.animated) {
+      card.dataset.animated = '1';
+      gsap.from(card, {y:50,opacity:0,scale:.95,duration:.5,delay:i*0.12,ease:'back.out(1.3)',scrollTrigger:{trigger:card,start:'top 88%',toggleActions:'play none none reverse'}});
+    }
+  });
+});
+observer.observe(document.body, {childList:true,subtree:true,attributes:true,attributeFilter:['class']});
+
+gsap.from('.budget .row',{x:-24,opacity:0,duration:.35,stagger:.06,ease:'power2.out',scrollTrigger:{trigger:'.budget',start:'top 84%',toggleActions:'play none none reverse'}});
+gsap.from('.footer h4',{y:40,opacity:0,duration:.8,ease:'power3.out',scrollTrigger:{trigger:'.footer',start:'top 85%',toggleActions:'play none none reverse'}});
+gsap.from('.footer p',{y:20,opacity:0,duration:.6,stagger:.1,ease:'power3.out',scrollTrigger:{trigger:'.footer',start:'top 82%',toggleActions:'play none none reverse'}});
+
+if (window.matchMedia('(prefers-reduced-motion:reduce)').matches) {
+  ScrollTrigger.getAll().forEach(st => st.kill());
+  gsap.globalTimeline.clear();
+}
+
+setTimeout(() => { const first = document.querySelector('.day-trigger'); if(first) toggleDay(first); }, 800);
+
+const sp = new URLSearchParams(location.search);
+const t = sp.get('t');
+if (t!==null){gsap.globalTimeline.pause();gsap.globalTimeline.progress(parseFloat(t)/7.8)}
+document.fonts.ready.then(()=>{ScrollTrigger.refresh();window.__ready=true});
+console.log('🗺️ رحلة باكو · ٤ أيام · أسعار مقامي للجملة · باكو ٢٠٢٦');
+</script>
+</body>
+</html>
